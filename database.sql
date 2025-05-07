@@ -27,7 +27,9 @@ INSERT INTO Category (id, name) VALUES
 CREATE TABLE IF NOT EXISTS File (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
+    category TEXT NOT NULL,
     author TEXT NOT NULL,
+    description TEXT NOT NULL,
     did TEXT NOT NULL,
     FOREIGN KEY (did) REFERENCES Document(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
