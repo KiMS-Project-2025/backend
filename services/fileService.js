@@ -20,8 +20,8 @@ async function generateFileId() {
  * Optional (yellow): description
  */
 exports.uploadFile = async (body, callback) => {
-  const { title, category, author, description, did} = body;
-  if (!title || !category || !author || !did || !description) {
+  const { title, cid, author, description, did} = body;
+  if (!title || !cid || !author || !did || !description) {
     return callback(400, { "message": "missing required parameter." });
   }
 
@@ -32,8 +32,8 @@ exports.uploadFile = async (body, callback) => {
   // Insert into File table.
   // Assumes table File has columns: id, title, did, category, author, description
   await db.runPreparedExecute(
-    "INSERT INTO File (id, title, category, author, description, did) VALUES (?, ?, ?, ?, ?, ?)",
-    [fid, title, category, author, description, did]
+    "INSERT INTO File (id, title, cid, author, description, did) VALUES (?, ?, ?, ?, ?, ?)",
+    [fid, title, cid, author, description, did]
   );
 
   // Insert an initial record to File_History table.
@@ -51,7 +51,7 @@ exports.uploadFile = async (body, callback) => {
   callback(201, { 
     "id": fid, 
     "title": title,
-    "category": category,
+    "categoryID": cid,
     "author": author,
     "description": description,
     "did": did, 
