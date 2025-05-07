@@ -1,24 +1,31 @@
-PRAGMA foreign_keys=OFF;
+PRAGMA foreign_keys = ON;
+
 BEGIN TRANSACTION;
-CREATE TABLE IF NOT EXISTS "File" (
+
+CREATE TABLE IF NOT EXISTS Document (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    create_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Category (
+    id TEXT PRIMARY KEY,
+    name TEXT
+);
+
+INSERT INTO Category (id, name) VALUES
+('1', 'IT'),
+('2', 'BA'),
+('3', 'EE'),
+('4', 'EN');
+
+CREATE TABLE IF NOT EXISTS File (
     id TEXT PRIMARY KEY,
     title TEXT,
     author TEXT,
     create_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     did TEXT,
-    FOREIGN KEY (did) REFERENCES Document(id)
+    FOREIGN KEY (did) REFERENCES Document(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
-CREATE TABLE Category (
-    id TEXT PRIMARY KEY,
-    name TEXT
-);
-INSERT INTO Category VALUES('1','IT');
-INSERT INTO Category VALUES('2','BA');
-INSERT INTO Category VALUES('3','EE');
-INSERT INTO Category VALUES('4','EN');
-CREATE TABLE Document (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    create_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+
 COMMIT;
