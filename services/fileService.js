@@ -93,66 +93,81 @@ exports.getFile = async (query, callback) => {
   });
 };
 
-/**
- * Update File Service
- * Required (green): id (file id)
- * Blue parameter (at least one required): name (new file name) or category (new category)
- */
+
 exports.updateFile = async (body, callback) => {
-  const { id, name, category } = body;
-  if (!id || (!name && !category)) {
-    return callback(400, { 
-      "message": "missing required parameter. Must provide file id and at least one of new name or new category." 
+    // Destructure parameters including the new "description"
+    const { id, name, cid, description } = body;
+    
+    // Validate that a file id is provided and at least one of name, cid, or description is present
+    if (!id || (!name && !cid && !description)) {
+      return callback(400, { 
+        "message": "Missing required parameter. Must provide file id and at least one of new name, new category (cid), or new description." 
+      });
+    }
+  
+    // Retrieve the current file record from the database
+    const fileRecord = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [id]);
+    if (fileRecord.length === 0) {
+      return callback(404, { "message": "File not found." });
+    }
+  
+    const modified_at = new Date().toISOString();
+  
+    // Dynamically build the update query based on provided parameters  
+    let updates = [];
+    let params = [];
+    
+    // Update file title if provided
+    if (name) {
+      updates.push("title=?");
+      params.push(name);
+    }
+    
+    // Update file category id if provided
+    if (cid) {
+      updates.push("cid=?");
+      params.push(cid);
+    }
+    
+    // Update file description if provided
+    if (description) {
+      updates.push("description=?");
+      params.push(description);
+    }
+  
+    // Finalize query construction
+    const updateQuery = "UPDATE File SET " + updates.join(", ") + " WHERE id=?";
+    params.push(id);
+  
+    await db.runPreparedExecute(updateQuery, params);
+  
+    // Log the modification in the File_History table
+    await db.runPreparedExecute(
+      "INSERT INTO File_History (fid, modified_at) VALUES (?, ?)",
+      [id, modified_at]
+    );
+  
+    // Retrieve updated file modification history
+    const history = await db.runPreparedSelect(
+      "SELECT modified_at FROM File_History WHERE fid=? ORDER BY modified_at DESC",
+      [id]
+    );
+  
+    // Prepare updated output, falling back to original values if a field wasn't updated
+    const updatedTitle = name ? name : fileRecord[0].title;
+    const updatedCid = cid ? cid : fileRecord[0].cid;
+    const updatedDescription = description ? description : fileRecord[0].description;
+  
+    callback(200, { 
+      "id": id, 
+      "title": updatedTitle,
+      "cid": updatedCid,
+      "description": updatedDescription,
+      "modified_at": modified_at, 
+      "history": history.map(item => item.modified_at) 
     });
-  }
-
-  // Retrieve the current file record
-  const fileRecord = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [id]);
-  if (fileRecord.length === 0) {
-    return callback(404, { "message": "file not found." });
-  }
-
-  const modified_at = new Date().toISOString();
-
-  // Dynamically build the update query
-  let updateQuery = "UPDATE File SET ";
-  let params = [];
-  let updates = [];
-  if (name) {
-    updates.push("title=?");
-    params.push(name);
-  }
-  if (category) {
-    updates.push("category=?");
-    params.push(category);
-  }
-  updateQuery += updates.join(", ") + " WHERE id=?";
-  params.push(id);
-
-  await db.runPreparedExecute(updateQuery, params);
-
-  // Log the modification
-  await db.runPreparedExecute(
-    "INSERT INTO File_History (fid, modified_at) VALUES (?, ?)",
-    [id, modified_at]
-  );
-
-  // Retrieve updated file history
-  const history = await db.runPreparedSelect(
-    "SELECT modified_at FROM File_History WHERE fid=? ORDER BY modified_at DESC",
-    [id]
-  );
-
-  // Use updated title if provided; otherwise, fall back to the original title.
-  const updatedTitle = name ? name : fileRecord[0].title;
-
-  callback(200, { 
-    "id": id, 
-    "title": updatedTitle, 
-    "modified_at": modified_at, 
-    "history": history.map(item => item.modified_at) 
-  });
-};
+  };
+  
 
 /**
  * Delete File Service
