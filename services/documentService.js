@@ -83,6 +83,35 @@ exports.changeDocumentName = async (body, callback) => {
     callback(201, { "id": did[0].id, "title": title, "modified_at": modified_at, "history": doc_history.map(item => item.modified_at) })
 }
 
-exports.deleteDocument = (callback) => {
-    // after file API
+exports.deleteDocument = async (body, callback) => {
+    const { id } = body
+    if (!id) {
+        return callback(400, { "message": "missing parameter." })
+    }
+
+    // Valid the id
+    const rs = await db.runPreparedSelect("SELECT id FROM Document WHERE id=?", [id])
+    if (rs.length === 0) {
+        return callback(404, { "message": "document not found." })
+    }
+
+    // Check the document in the server
+    const documentPath = path.join(process.cwd(), process.env.STORAGE_DIR, id)
+    if (!fs.existsSync(documentPath)) {
+        return callback(404, { "message": "document not found in server." })
+    }
+
+    // Delete data in database
+    await db.runPreparedExecute("DELETE FROM File_History WHERE fid=(SELECT id FROM File WHERE did=?)", [id])
+    await db.runPreparedExecute("DELETE FROM File WHERE did=?", [id])
+    await db.runPreparedExecute("DELETE FROM Document_History WHERE did=?", [id])
+    await db.runPreparedExecute("DELETE FROM Document WHERE id=?", [id])
+
+    // Delete the document and its childrens
+    try {
+        await fs.promises.rm(documentPath, { recursive: true, force: true })
+        callback(200, { "message": "delete successfully." })
+    } catch (error) {
+        callback(500, { "message": error })
+    }
 }
