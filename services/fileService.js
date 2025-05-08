@@ -186,3 +186,43 @@ exports.deleteFile = async (query, callback) => {
     
     callback(200, { "message": "File deleted." });
   };
+
+  exports.downloadFile = async (query, res) => {
+    const { id } = query;
+
+    if (!id) {
+        return res.status(400).json({ message: "Missing required parameter: id" });
+    }
+
+    try {
+        // Retrieve document ID (`did`) and title from the database
+        const fileRecord = await db.runPreparedSelect("SELECT did, title FROM File WHERE id=?", [id]);
+        
+        if (fileRecord.length === 0) {
+            return res.status(404).json({ message: "File not found." });
+        }
+
+        const did = fileRecord[0].did;
+        const fileName = fileRecord[0].title + ".pdf"; // Ensure filename includes `.pdf`
+
+        // Construct file path dynamically
+        const filePath = path.join(process.cwd(), process.env.STORAGE_DIR, did, id + ".pdf");
+
+        // Check if the file exists on disk
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ message: "File not found on server storage." });
+        }
+
+        // Set headers for file download
+        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        res.setHeader("Content-Type", "application/pdf");
+
+        // Stream the file to the user
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
+
+    } catch (error) {
+        console.error("Error downloading file:", error);
+        res.status(500).json({ message: "Internal server error." });
+    }
+};
