@@ -1,32 +1,47 @@
-const fileService = require("../services/fileService");
-
-// Controller to handle file uploads.
+const fileService = require("../services/fileService")
 
 exports.uploadFile = (req, res) => {
-    // req.file should be provided by your middleware, e.g., Multer.
-    fileService.uploadFile(req.body, req.file, (status, data) => {
-        res.status(status).json(data);
-    });
-};
+    if (!req.file) return res.status(400).json({ "message": "not upload any file." })
 
-// Controller to get file information.
+    const fid = req.savedFileId
+    fileService.createFile(req.body, fid, (status, data) => {
+        res.status(status).json(data)
+    })
+}
+
+exports.editFile = (req, res) => {
+    fileService.editFileInformation(req.body, (status, data) => {
+        res.status(status).json(data)
+    })
+}
 
 exports.getFile = (req, res) => {
-    fileService.getFile(req.query, (status, data) => {
-        res.status(status).json(data);
-    });
-};
+    const { id, detail } = req.query
 
-// Controller to update file information.
-exports.updateFile = (req, res) => {á
-    fileService.updateFile(req.body, (status, data) => {
-        res.status(status).json(data);
-    });
-};
+    if (!id) return res.status(400).json({ "message": "missing parameter." })
 
-// Controller to delete a file.
+    if (!detail) {
+        fileService.getFile(id, (status, filePath) => {
+            if (status === 200) {
+                res.sendFile(filePath, (err) => {
+                    if (err) {
+                        res.status(404).json({ "message": "file not found." })
+                    }
+                })
+            }
+            else {
+                res.status(404).json({ "message": "file not found." })
+            }
+        })
+    } else {
+        fileService.getFileInformation(id, (status, data) => {
+            res.status(status).json(data)
+        })
+    }
+}
+
 exports.deleteFile = (req, res) => {
-    fileService.deleteFile(req.query, (status, data) => {
-        res.status(status).json(data);
-    });
-};
+    fileService.deleteFile(req.body, (status, data) => {
+        res.status(status).json(data)
+    })
+}

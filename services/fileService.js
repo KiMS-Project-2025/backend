@@ -1,227 +1,131 @@
-const db = require("../utils/db");
-const { v4: uuidv4 } = require("uuid");
-const fs = require("fs");
-const path = require("path");
-const multer = require("multer");
+const db = require("../utils/db")
+const fs = require("fs")
+const path = require("path")
 
+exports.createFile = async (body, fid, callback) => {
+    const { title, cid, author, did, description } = body
 
-// Multer setup – files are stored in memory before processing.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype !== "application/pdf") {
-      return cb(new Error("Only PDF files are allowed."), false);
+    const modified_at = new Date().toISOString()
+
+    // Insert to database
+    await db.runPreparedExecute("INSERT INTO File VALUES (?, ?, ?, ?, ?, ?)", [fid, title, cid, author, description, did])
+    await db.runPreparedExecute("INSERT INTO File_History VALUES (?, ?)", [fid, modified_at])
+
+    // Get file modified history
+    const fileHistory = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid = ? ORDER BY modified_at DESC", [fid])
+    callback(201, { "id": fid, "title": title, "modified_at": modified_at, "history": fileHistory.map(item => item.modified_at) })
+}
+
+exports.editFileInformation = async (body, callback) => {
+    const { id, title, cid, description } = body
+
+    if (!id || (!title && !cid && !description))
+        return callback(400, { "message": "missing parameter." })
+
+    let updates = []
+    let params = []
+    if (title) {
+        updates.push("title=?")
+        params.push(title)
     }
-    cb(null, true);
-  },
-});
-
-// Middleware to handle file upload
-exports.uploadMiddleware = upload.single("attachment"); // "attachment" matches the key in Postman
-
-/**
- * Upload File Service (PDF Only)
- * Required fields: title, cid, author, did
- * Optional field: description
- * File is processed via Multer as req.file.
- */
-exports.uploadFile = async (req, callback) => {
-  try {
-    const { title, cid, author, did, description } = req.body; // Text fields
-    const file = req.file; // Uploaded file
-
-    if (!file || !title || !cid || !author || !did) {
-      return callback(400, { message: "Missing required parameter." });
+    if (cid) {
+        const check = await db.runPreparedSelect("SELECT id FROM Category WHERE id=?", [cid])
+        if (check.length !== 1) {
+            return callback(404, { "message": "category not found." })
+        }
+        updates.push("cid=?")
+        params.push(cid)
     }
-
-    const fid = await generateFileId();
-    const modified_at = new Date().toISOString();
-
-    // Create the document directory (STORAGE_DIR/<did>) if it does not exist.
-    const docDirectory = path.join(process.cwd(), process.env.STORAGE_DIR, did);
-    if (!fs.existsSync(docDirectory)) {
-      fs.mkdirSync(docDirectory, { recursive: true });
+    if (description) {
+        updates.push("description=?")
+        params.push(description)
     }
 
-    // Save file as <fid>.pdf inside STORAGE_DIR/<did>/
-    const filePath = path.join(docDirectory, fid + ".pdf");
-    fs.writeFileSync(filePath, file.buffer);
+    await db.runPreparedExecute(`UPDATE File SET ${updates.join(", ")} WHERE id=?`, [...params, id])
 
-    // Insert file metadata into the database.
-    await db.runPreparedExecute(
-      "INSERT INTO File (id, title, cid, author, description, did, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [fid, title, cid, author, description || null, did, modified_at]
-    );
+    const modified_at = new Date().toISOString()
+    await db.runPreparedExecute("INSERT INTO File_History VALUES(?, ?)", [id, modified_at])
 
-    // Log modification history.
-    await db.runPreparedExecute(
-      "INSERT INTO File_History (fid, modified_at) VALUES (?, ?)",
-      [fid, modified_at]
-    );
+    let fileInformation = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [id])
+    if (fileInformation.length === 0) {
+        return callback(404, { "message": "file not found." })
+    }
 
-    callback(201, {
-      id: fid,
-      title,
-      cid,
-      author,
-      description,
-      did,
-      modified_at,
-    });
-  } catch (error) {
-    callback(500, { message: error.message });
-  }
-};
+    const fileHistory = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid = ? ORDER BY modified_at DESC", [id])
 
-exports.getFile = async (query, res) => {
-  const { id, detail } = query;
+    const history = fileHistory.map(item => item.modified_at)
+    fileInformation = fileInformation[0]
+    fileInformation["modified_at"] = modified_at
+    fileInformation["history"] = history
+    callback(200, fileInformation)
+}
 
-  if (!id) {
-    return res.status(400).json({ message: "Missing required parameter: id" });
-  }
+exports.getFile = async (id, callback) => {
+    const rs = await db.runPreparedSelect("SELECT id, did FROM File WHERE id=?", [id])
+    if (rs.length == 0) {
+        return callback(404, { "message": "file not found." })
+    }
 
-  // Retrieve file details from the database.
-  const fileData = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [id]);
-  if (fileData.length === 0) {
-    return res.status(404).json({ message: "File not found." });
-  }
+    const did = rs[0]?.did
+    const fid = rs[0]?.id
 
-  const fileRecord = fileData[0];
-  const filePath = path.join(process.cwd(), process.env.STORAGE_DIR, fileRecord.did, id + ".pdf");
+    const storagePath = path.join(process.cwd(), process.env.STORAGE_DIR, did)
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ message: "File not found on server storage." });
-  }
+    if (!fs.existsSync(storagePath)) {
+        throw new Error("document not exist.")
+    }
 
-  if (detail === "1") {
-    // If detail=1, return file information
-    return res.status(200).json({
-      id: fileRecord.id,
-      title: fileRecord.title,
-      cid: fileRecord.cid,
-      author: fileRecord.author,
-      description: fileRecord.description,
-      did: fileRecord.did,
-      created_at: fileRecord.created_at,
-    });
-  }
+    const files = fs.readdirSync(storagePath)
+    const matchedFile = files.find(file => file.startsWith(fid + "."))
 
-  // Otherwise, send the file for download
-  res.setHeader("Content-Disposition", `attachment; filename="${fileRecord.title}.pdf"`);
-  res.setHeader("Content-Type", "application/pdf");
+    if (!matchedFile) {
+        throw new Error("file not exist.")
+    }
 
-  fs.createReadStream(filePath).pipe(res);
-};
-/**
- * Update File Metadata or Replace the PDF
- * Required: id (File ID)
- * At least one of the following must be provided: title, cid, description, or new PDF file.
- * Multer processes the new file as req.file.
- */
-exports.updateFile = async (req, callback) => {
-  const { id, title, cid, description } = req.body;
-  const file = req.file;
+    callback(200, path.join(storagePath, matchedFile))
+}
 
-  if (!id || (!title && !cid && !description && !file)) {
-    return callback(400, { "message": "Provide file id and at least one update parameter." });
-  }
+exports.getFileInformation = async (id, callback) => {
+    let fileInformation = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [id])
+    if (fileInformation.length === 0) {
+        return callback(404, { "message": "file not found." })
+    }
 
-  // Retrieve existing file details.
-  const fileRecord = await db.runPreparedSelect("SELECT did FROM File WHERE id=?", [id]);
-  if (fileRecord.length === 0) {
-    return callback(404, { "message": "File not found." });
-  }
+    const fileHistory = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid = ? ORDER BY modified_at DESC", [id])
 
-  const modified_at = new Date().toISOString();
-  let updates = [];
-  let params = [];
+    const modified_at = fileHistory[0].modified_at
+    const history = fileHistory.map(item => item.modified_at)
+    fileInformation = fileInformation[0]
+    fileInformation["modified_at"] = modified_at
+    fileInformation["history"] = history
+    callback(200, fileInformation)
+}
 
-  if (title) {
-    updates.push("title=?");
-    params.push(title);
-  }
-  if (cid) {
-    updates.push("cid=?");
-    params.push(cid);
-  }
-  if (description) {
-    updates.push("description=?");
-    params.push(description);
-  }
+exports.deleteFile = async (body, callback) => {
+    const { id } = body
+    if (!id)
+        return callback(400, { "message": "missing parameter." })
 
-  if (updates.length > 0) {
-    // Update file metadata.
-    await db.runPreparedExecute(`UPDATE File SET ${updates.join(", ")} WHERE id=?`, [...params, id]);
-  }
+    let did = await db.runPreparedSelect("SELECT did FROM File WHERE id=?", [id])
+    if (did.length === 0) {
+        return callback(404, { "message": "file not found" })
+    }
+    did = did[0]?.did
 
-  // If a new PDF file is provided, replace the physical file.
-  if (file) {
-    const docDirectory = path.join(process.cwd(), process.env.STORAGE_DIR, fileRecord[0].did);
-    const filePath = path.join(docDirectory, id + ".pdf");
-    fs.writeFileSync(filePath, file.buffer);
-  }
+    const storagePath = path.join(process.cwd(), process.env.STORAGE_DIR, did)
+    if (!fs.existsSync(storagePath)) {
+        return callback(404, { "message": "document not found" })
+    }
+    const files = fs.readdirSync(storagePath)
+    const matchedFile = files.find(file => file.startsWith(id + "."))
+    const filePath = path.join(storagePath, matchedFile)
+    if (!fs.existsSync(filePath)) {
+        return callback(404, { "message": "file not found" })
+    }
 
-  // Log the update operation.
-  await db.runPreparedExecute("INSERT INTO File_History (fid, modified_at) VALUES (?, ?)", [id, modified_at]);
+    await db.runPreparedExecute("DELETE FROM File_History WHERE fid=?", [id])
+    await db.runPreparedExecute("DELETE FROM File WHERE id=?", [id])
 
-  callback(200, { "message": "File updated successfully." });
-};
-
-/**
- * Delete File Service
- * Required: id (File ID)
- */
-exports.deleteFile = async (query, callback) => {
-  const { id } = query;
-  if (!id) {
-    return callback(400, { "message": "Missing required parameter." });
-  }
-
-  // Get document id (did) associated with the file.
-  const fileRecord = await db.runPreparedSelect("SELECT did FROM File WHERE id=?", [id]);
-  if (fileRecord.length === 0) {
-    return callback(404, { "message": "File not found." });
-  }
-
-  const filePath = path.join(process.cwd(), process.env.STORAGE_DIR, fileRecord[0].did, id + ".pdf");
-
-  // Delete file metadata and history from the database.
-  await db.runPreparedExecute("DELETE FROM File WHERE id=?", [id]);
-  await db.runPreparedExecute("DELETE FROM File_History WHERE fid=?", [id]);
-
-  // Delete the physical file.
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
-
-  callback(200, { "message": "File deleted successfully." });
-};
-
-/**
- * Download File Service
- * Required query parameter: id (File ID)
- */
-exports.downloadFile = async (query, res) => {
-  const { id } = query;
-  if (!id) {
-    return res.status(400).json({ message: "Missing required parameter: id" });
-  }
-
-  // Retrieve document id and title for the file.
-  const fileRecord = await db.runPreparedSelect("SELECT did, title FROM File WHERE id=?", [id]);
-  if (fileRecord.length === 0) {
-    return res.status(404).json({ message: "File not found." });
-  }
-
-  const filePath = path.join(process.cwd(), process.env.STORAGE_DIR, fileRecord[0].did, id + ".pdf");
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ message: "File not found on server storage." });
-  }
-
-  res.setHeader("Content-Disposition", `attachment; filename="${fileRecord[0].title}.pdf"`);
-  res.setHeader("Content-Type", "application/pdf");
-
-  fs.createReadStream(filePath).pipe(res);
-};
-
+    fs.unlinkSync(filePath)
+    callback(200, { "message": "delete successfully." })
+}
