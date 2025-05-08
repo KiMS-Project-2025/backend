@@ -19,5 +19,7 @@ exports.editDocument = (req, res) => {
 }
 
 exports.deleteDocument = (req, res) => {
-    // after file API
+    documentService.deleteDocument(req.body, (status, data) => {
+        res.status(status).json(data)
+    })
 }
