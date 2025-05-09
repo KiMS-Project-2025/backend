@@ -1,0 +1,7 @@
+node_modules/
+storage/
+.env*
+.gitignore
+*.db
+package-lock.json
+README.md
