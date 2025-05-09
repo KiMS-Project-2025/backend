@@ -11,7 +11,8 @@ exports.search = async (query, callback) => {
                     f.title,
                     f.description,
                     c.name AS category,
-                    f.author
+                    f.author,
+                    f.did
                 FROM File f
                 JOIN Category c ON f.cid = c.id
                 WHERE 
