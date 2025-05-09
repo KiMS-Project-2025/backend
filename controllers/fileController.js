@@ -21,15 +21,18 @@ exports.getFile = (req, res) => {
     if (!id) return res.status(400).json({ "message": "missing parameter." })
 
     if (!detail) {
-        fileService.getFile(id, (status, filePath) => {
+        fileService.getFile(id, (status, data) => {
             if (status === 200) {
+                const { filePath, fileName } = data
+
                 if (download) {
-                    res.download(filePath, (err) => {
+                    res.download(filePath, fileName, (err) => {
                         if (err) {
                             res.status(404).json({ "message": "file not found." })
                         }
                     })
                 } else {
+                    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`)
                     res.sendFile(filePath, (err) => {
                         if (err) {
                             res.status(404).json({ "message": "file not found." })

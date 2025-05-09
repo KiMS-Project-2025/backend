@@ -72,7 +72,7 @@ exports.editFileInformation = async (body, callback) => {
 }
 
 exports.getFile = async (id, callback) => {
-    const rs = await db.runPreparedSelect("SELECT id, did FROM File WHERE id=?", [id])
+    const rs = await db.runPreparedSelect("SELECT id, did, title FROM File WHERE id=?", [id])
     if (rs.length == 0) {
         return callback(404, { "message": "file not found." })
     }
@@ -92,8 +92,9 @@ exports.getFile = async (id, callback) => {
     if (!matchedFile) {
         throw new Error("file not exist.")
     }
+    const fileName = `${rs[0]?.title}.pdf`
 
-    callback(200, path.join(storagePath, matchedFile))
+    callback(200, { "filePath": path.join(storagePath, matchedFile), "fileName": fileName })
 }
 
 exports.getFileInformation = async (id, callback) => {
