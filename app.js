@@ -1,7 +1,7 @@
 require("dotenv").config()
 
 var express = require('express');
-var path = require('path');
+const cors = require("cors")
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
@@ -13,6 +13,11 @@ const searchRouter = require("./routes/searchRoutes")
 
 var app = express();
 
+app.use(cors({
+    origin: process.env.FE_ORIGIN,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+}));
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
