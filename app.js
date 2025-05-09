@@ -8,6 +8,7 @@ var logger = require('morgan');
 var indexRouter = require('./routes/index');
 const documentRouter = require("./routes/documentRoutes")
 const fileRouter = require("./routes/fileRoutes")
+const homeRouter = require("./routes/homeRoutes")
 
 var app = express();
 
@@ -19,5 +20,6 @@ app.use(cookieParser());
 app.use('/', indexRouter);
 app.use('/document', documentRouter)
 app.use('/file', fileRouter)
+app.use('/home', homeRouter)
 
 module.exports = app;
