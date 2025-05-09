@@ -11,9 +11,20 @@ exports.createFile = async (body, fid, callback) => {
     await db.runPreparedExecute("INSERT INTO File VALUES (?, ?, ?, ?, ?, ?)", [fid, title, cid, author, description, did])
     await db.runPreparedExecute("INSERT INTO File_History VALUES (?, ?)", [fid, modified_at])
 
-    // Get file modified history
-    const fileHistory = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid = ? ORDER BY modified_at DESC", [fid])
-    callback(201, { "id": fid, "title": title, "modified_at": modified_at, "history": fileHistory.map(item => item.modified_at) })
+    // Get file information
+    let fileInformation = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [fid])
+    if (fileInformation.length === 0) {
+        return callback(404, { "message": "file not found." })
+    }
+
+    let fileHistory = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid = ? ORDER BY modified_at DESC", [fid])
+
+    fileHistory = fileHistory.map(item => item.modified_at)
+    fileInformation = fileInformation[0]
+    fileInformation["modified_at"] = fileHistory[0]
+    fileInformation["history"] = fileHistory
+
+    callback(200, fileInformation)
 }
 
 exports.editFileInformation = async (body, callback) => {
