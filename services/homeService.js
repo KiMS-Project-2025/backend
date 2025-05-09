@@ -1,20 +1,23 @@
 const db = require("../utils/db")
 
 exports.getAllDocuments = async (callback) => {
-    let documents = await db.runPreparedSelect("SELECT id, title FROM Document")
+    let documents = await db.runPreparedSelect(`
+        SELECT d.id, d.title, MAX(h.modified_at) as modified_at
+        FROM Document d
+        LEFT JOIN Document_History h ON d.id = h.did
+        GROUP BY d.id
+        ORDER BY modified_at DESC
+    `)
 
-    documents = await Promise.all(documents.map(async (element) => {
+    documents = await Promise.all(documents.map(async (doc) => {
         let history = await db.runPreparedSelect(
             "SELECT modified_at FROM Document_History WHERE did = ? ORDER BY modified_at DESC",
-            [element.id]
+            [doc.id]
         )
 
-        history = history.map(item => item.modified_at)
-
         return {
-            ...element,
-            modified_at: history[0],
-            history: history
+            ...doc,
+            history: history.map(item => item.modified_at)
         }
     }))
 
