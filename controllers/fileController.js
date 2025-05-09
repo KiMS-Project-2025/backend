@@ -16,18 +16,26 @@ exports.editFile = (req, res) => {
 }
 
 exports.getFile = (req, res) => {
-    const { id, detail } = req.query
+    const { id, detail, download } = req.query
 
     if (!id) return res.status(400).json({ "message": "missing parameter." })
 
     if (!detail) {
         fileService.getFile(id, (status, filePath) => {
             if (status === 200) {
-                res.sendFile(filePath, (err) => {
-                    if (err) {
-                        res.status(404).json({ "message": "file not found." })
-                    }
-                })
+                if (download) {
+                    res.download(filePath, (err) => {
+                        if (err) {
+                            res.status(404).json({ "message": "file not found." })
+                        }
+                    })
+                } else {
+                    res.sendFile(filePath, (err) => {
+                        if (err) {
+                            res.status(404).json({ "message": "file not found." })
+                        }
+                    })
+                }
             }
             else {
                 res.status(404).json({ "message": "file not found." })
