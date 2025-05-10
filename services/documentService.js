@@ -50,12 +50,12 @@ exports.getDocument = async (query, callback) => {
         return callback(404, { "message": "document not found." })
     }
 
-    const rs = await db.runPreparedSelect("SELECT * FROM File WHERE did=?", [id])
-    rs.array?.forEach(async (element) => {
-        const history = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid=?", [element.id])
-        rs.history = history.map(item => item.modified_at)
-    });
-
+    let rs = await db.runPreparedSelect("SELECT * FROM File WHERE did=?", [id])
+    for (let element of rs) {
+        const history = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid= ? ORDER BY modified_at DESC", [element.id])
+        element["modified_at"] = history[0].modified_at
+        element["history"] = history.map(item => item.modified_at)
+    }
     // Get document modified history
     const doc_history = await db.runPreparedSelect("SELECT modified_at FROM Document_History WHERE did = ? ORDER BY modified_at DESC", [id])
 
