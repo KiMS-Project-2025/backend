@@ -10,6 +10,7 @@ const documentRouter = require("./routes/documentRoutes")
 const fileRouter = require("./routes/fileRoutes")
 const homeRouter = require("./routes/homeRoutes")
 const searchRouter = require("./routes/searchRoutes")
+const categoryRouter = require("./routes/categoryRoutes")
 
 var app = express();
 
@@ -28,5 +29,6 @@ app.use('/document', documentRouter)
 app.use('/file', fileRouter)
 app.use('/home', homeRouter)
 app.use('/search', searchRouter)
+app.use('/category', categoryRouter)
 
 module.exports = app;

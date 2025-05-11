@@ -14,15 +14,9 @@ CREATE TABLE IF NOT EXISTS Document_History (
 );
 
 CREATE TABLE IF NOT EXISTS Category (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
 );
-
-INSERT INTO Category (id, name) VALUES
-('1', 'IT'),
-('2', 'BA'),
-('3', 'EE'),
-('4', 'EN');
 
 CREATE TABLE IF NOT EXISTS File (
     id TEXT PRIMARY KEY,
