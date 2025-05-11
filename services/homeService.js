@@ -21,5 +21,10 @@ exports.getAllDocuments = async (callback) => {
         }
     }))
 
-    callback(200, documents)
+    let rs = await db.runPreparedSelect("SELECT SUM(view) AS total_views, COUNT(*) AS total_files FROM File")
+
+    const total_views = rs[0].total_views ? rs[0].total_views : 0
+    const total_files = rs[0].total_files ? rs[0].total_files : 0
+
+    callback(200, { documents, total_views, total_files })
 }
