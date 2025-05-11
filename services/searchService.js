@@ -11,6 +11,7 @@ exports.search = async (query, callback) => {
                     f.title,
                     f.description,
                     c.name AS category,
+                    f.cid,
                     f.author,
                     f.did,
                     MAX(fh.modified_at) AS modified_at
