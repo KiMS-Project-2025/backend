@@ -50,7 +50,7 @@ exports.getDocument = async (query, callback) => {
         return callback(404, { "message": "document not found." })
     }
 
-    let rs = await db.runPreparedSelect("SELECT File.*, Category.name as category_name FROM File JOIN Category ON File.cid = Category.id WHERE did=?", [id])
+    let rs = await db.runPreparedSelect("SELECT File.*, Category.name as category_name FROM File JOIN Category ON File.cid = Category.id LEFT JOIN File_History ON File.id = File_History.fid WHERE did=? GROUP BY File.id ORDER BY MAX(File_History.modified_at) DESC", [id])
     for (let element of rs) {
         const history = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid= ? ORDER BY modified_at DESC", [element.id])
         element["modified_at"] = history[0].modified_at
