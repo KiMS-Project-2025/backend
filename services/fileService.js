@@ -8,7 +8,7 @@ exports.createFile = async (body, fid, callback) => {
     const modified_at = new Date().toISOString()
 
     // Insert to database
-    await db.runPreparedExecute("INSERT INTO File VALUES (?, ?, ?, ?, ?, ?)", [fid, title, cid, author, description, did])
+    await db.runPreparedExecute("INSERT INTO File VALUES (?, ?, ?, ?, ?, ?, ?)", [fid, title, cid, author, description, did, 0])
     await db.runPreparedExecute("INSERT INTO File_History VALUES (?, ?)", [fid, modified_at])
 
     // Get file information
@@ -140,4 +140,33 @@ exports.deleteFile = async (body, callback) => {
 
     fs.unlinkSync(filePath)
     callback(200, { "message": "delete successfully." })
+}
+
+exports.addView = async (body, callback) => {
+    const { id } = body
+    if (!id) {
+        return callback(400, { "message": "missing parameter." })
+    }
+
+    let view = await db.runPreparedSelect("SELECT view FROM File WHERE id=?", [id])
+    if (view.length === 0) {
+        return callback(404, { "message": "file not found." })
+    }
+
+    view = view[0].view + 1
+    await db.runPreparedExecute("UPDATE File SET view=? WHERE id=?", [view, id])
+
+    let fileInformation = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [id])
+    if (fileInformation.length === 0) {
+        return callback(404, { "message": "file not found." })
+    }
+
+    const fileHistory = await db.runPreparedSelect("SELECT modified_at FROM File_History WHERE fid = ? ORDER BY modified_at DESC", [id])
+
+    const modified_at = fileHistory[0].modified_at
+    const history = fileHistory.map(item => item.modified_at)
+    fileInformation = fileInformation[0]
+    fileInformation["modified_at"] = modified_at
+    fileInformation["history"] = history
+    callback(200, fileInformation)
 }

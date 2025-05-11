@@ -56,3 +56,9 @@ exports.deleteFile = (req, res) => {
         res.status(status).json(data)
     })
 }
+
+exports.addView = (req, res) => {
+    fileService.addView(req.body, (status, data) => {
+        res.status(status).json(data)
+    })
+}

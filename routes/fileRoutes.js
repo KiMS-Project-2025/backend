@@ -8,6 +8,7 @@ router.post("/", upload.single("attachment"), fileController.uploadFile, (err, r
     res.status(400).json({ "message": err.message })
 })
 router.put("/", fileController.editFile)
+router.patch("/", fileController.addView)
 router.delete("/", fileController.deleteFile)
 
 module.exports = router
