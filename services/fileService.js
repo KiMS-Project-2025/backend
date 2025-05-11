@@ -12,7 +12,7 @@ exports.createFile = async (body, fid, callback) => {
     await db.runPreparedExecute("INSERT INTO File_History VALUES (?, ?)", [fid, modified_at])
 
     // Get file information
-    let fileInformation = await db.runPreparedSelect("SELECT * FROM File WHERE id=?", [fid])
+    let fileInformation = await db.runPreparedSelect("SELECT File.*, Category.name as category_name FROM File JOIN Category ON File.cid = Category.id WHERE File.id=?", [fid])
     if (fileInformation.length === 0) {
         return callback(404, { "message": "file not found." })
     }
